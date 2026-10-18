@@ -1,20 +1,20 @@
 --[[===========================================================
-   VENICE BONECA v6.2  - CORRIGIDO (spawn + SEXO funcionando)
+   VENICE BONECA v6.3  - CORRIGIDO
    -----------------------------------------------------------
-   BUG PRINCIPAL CORRIGIDO:
-     baseJ era montado ANTES dos motores de braco/perna
-     existirem -> baseJ["bracoD"]=nil -> o RenderStepped
-     quebrava todo frame com a boneca viva (poses, IK, jiggle,
-     olhos e maos nunca rodavam) e pararSexo() tambem quebrava.
+   CORRECAO DESTA VERSAO:
+     "NumberSequence.new(): table of NumberSequenceKeypoints
+      expected" -> a funcao suor() passava um Keypoint em vez
+      de numero no pe.Size. Era isso que matava o criarBoneca
+      ANTES de S.boneca existir (por isso o SEXO ficava em OFF).
 
-   OUTRAS CORRECOES:
-     - barra de status FIXA no topo (o erro nao fica mais
-       escondido no fim do scroll)
+   CORRECOES ANTERIORES (mantidas):
+     - baseJ montado DEPOIS dos motores (poses/IK/jiggle/olhos
+       e pararSexo quebravam por baseJ[sem] = nil)
+     - barra de status FIXA no topo mostrando o erro
      - GUI antiga destruida em PlayerGui E gethui
      - SPAWN/SEXO sempre atualizam o texto, mesmo com erro
      - boneca acha o chao por raycast (nao flutua)
-     - jiggle respeita o toggle
-     - rede toda em pcall
+     - jiggle respeita o toggle / rede toda em pcall
 ===========================================================]]
 
 print("[VB] 1 - iniciando")
@@ -100,6 +100,7 @@ local S = {
     lastPos=nil, accSm=V3(), poseAnt=1,
 }
 
+--==================== FALAS ====================
 local GEM = {
     normal={"ahh~","mmmh~","aii~","haah~","uhh~","ahh!","mmh~","ah~","aah~","uhnn~","ahn~","ahnn~","mmhh~","aah!","ah~ah~","ai~","uh~","hmm~","ahn!","ahh...","mmm...","uhn~","ah~ mm~","ha~","aaah~","uhh!","mhh~","aaa~","ah!","mmh!","ahnn~","haah!","uhnn!","ah~ aah~","mmmh!","ahn ahn~","ah ah ah~","uhn uhn~","haah...","ahh~ aah~"},
     oral={"nhac~","glub~","mmph~","gulp~","nham~","slurp~","gluck~","ahm~","mmf~","nhac nhac~","gllp~","hmmf!","glub glub~","nha~","chup~","slrp~","mmh!","engasguei~","guck~","nhac!","ahm!","gulp!","slurp!","chupa~","nhac~ nhac~","glub!","mmph!","ah...","slp~","nham!","gllup~","nhac~ nham~"},
@@ -437,7 +438,9 @@ local function criarBoneca()
     end
 
     ---------------------------------------------------------------
-    -- CORRECAO PRINCIPAL: baseJ DEPOIS de todos os motores existirem
+    -- baseJ DEPOIS de todos os motores existirem (raiz, cabeca,
+    -- bracos e pernas). Sem isso, baseJ[bracoD] = nil e o loop
+    -- quebrava todo frame.
     ---------------------------------------------------------------
     local baseJ = {}
     for k, m in pairs(M) do baseJ[k] = m.C0 end
@@ -450,11 +453,12 @@ local function criarBoneca()
         pe.Transparency=NumberSequence.new(0.35)
         pe.Lifetime=NumberRange.new(0.7,1.2); pe.Rate=0
         pe.Speed=NumberRange.new(0.6,1.6); pe.SpreadAngle=Vector2.new(180,180)
-        pe.Size=NumberSequence.new(tam); pe.LightEmission=0.4; pe.Parent=at
+        pe.Size=NumberSequence.new(tam)          -- tam = NUMERO (corrigido)
+        pe.LightEmission=0.4; pe.Parent=at
         S.particulas[#S.particulas+1]=pe
     end
-    suor(tronco:FindFirstChild("Costelas") or tronco, NumberSequenceKeypoint.new(0,0.10))
-    suor(cab, NumberSequenceKeypoint.new(0,0.08))
+    suor(tronco:FindFirstChild("Costelas") or tronco, 0.10)
+    suor(cab, 0.08)
 
     model.PrimaryPart = hrp; model.Parent = WS
     S.boneca = { model=model, hrp=hrp, tronco=tronco, cabeca=cabeca, motores=M, baseJ=baseJ,
@@ -1046,12 +1050,12 @@ local function ligarLoop()
         local a = S.tesao/100
         local br = sin(S.resp*pi*2)
 
-        -- baseJ com fallback (nunca mais nil)
+        -- seta os motores com fallback (nunca mais nil)
         local function setMotores(tab)
             for sem,m in pairs(S.boneca.motores) do
                 if m.Parent then
                     local extra = IDENT
-                    if sem=="cabeca" then extra = tab and tab.extraCab or IDENT end
+                    if sem=="cabeca" then extra = (tab and tab.extraCab) or IDENT end
                     m.C0 = (S.boneca.baseJ[sem] or IDENT) * ((tab and tab.mot[sem]) or IDENT) * extra
                 end
             end
@@ -1419,7 +1423,7 @@ local function montarGUI()
 
     local barra=Instance.new("TextButton")
     barra.Size=UDim2.new(1,0,0,26); barra.BackgroundColor3=ROSA; barra.BackgroundTransparency=0.15
-    barra.BorderSizePixel=0; barra.Text="   VENICE BONECA v6.2"; barra.TextColor3=Color3.new(1,1,1)
+    barra.BorderSizePixel=0; barra.Text="   VENICE BONECA v6.3"; barra.TextColor3=Color3.new(1,1,1)
     barra.TextSize=12; barra.Font=Enum.Font.GothamBold; barra.TextXAlignment=Enum.TextXAlignment.Left
     barra.AutoButtonColor=false; barra.Parent=main
     local cB=Instance.new("UICorner"); cB.CornerRadius=UDim.new(0,10); cB.Parent=barra
@@ -1428,7 +1432,7 @@ local function montarGUI()
     btnMin.Text="-"; btnMin.TextColor3=Color3.new(1,1,1); btnMin.TextSize=16
     btnMin.Font=Enum.Font.GothamBold; btnMin.Parent=barra
 
-    -- BARRA DE STATUS FIXA (o erro nao fica mais escondido)
+    -- BARRA DE STATUS FIXA (mostra o erro na hora)
     local banner=Instance.new("TextLabel")
     banner.Size=UDim2.new(1,0,0,30); banner.Position=UDim2.new(0,0,0,26)
     banner.BackgroundColor3=Color3.fromRGB(32,22,32); banner.BorderSizePixel=0
